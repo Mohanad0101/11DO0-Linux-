@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Виртуальные среды Python — зачем они нужны</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0b0b18;
+  --card:    #14142b;
+  --blue:    #7c9ef8;
+  --green:   #34d399;
+  --red:     #f87171;
+  --yellow:  #fbbf24;
+  --muted:   #64748b;
+  --text:    #e2e8f0;
+}
+
+html, body {
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+#deck { width: 100%; height: 100%; position: relative; }
+
+.slide {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  padding: 52px 80px 40px;
+  opacity: 0; pointer-events: none;
+  transition: opacity .45s ease, transform .45s ease;
+  transform: translateX(48px);
+}
+.slide.active  { opacity: 1; pointer-events: all; transform: translateX(0); }
+.slide.out     { opacity: 0; transform: translateX(-48px); }
+
+#bar {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: linear-gradient(90deg, var(--blue), var(--green));
+  transition: width .4s; z-index: 9;
+}
+#nav {
+  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 14px; align-items: center;
+  background: rgba(20,20,43,.9); border: 1px solid rgba(124,158,248,.2);
+  border-radius: 40px; padding: 10px 22px; backdrop-filter: blur(8px); z-index: 9;
+}
+#nav button {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: none; border: 1px solid rgba(124,158,248,.3);
+  color: var(--blue); font-size: 1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s;
+}
+#nav button:hover { background: var(--blue); color: var(--bg); }
+#nav button:disabled { opacity: .3; cursor: default; }
+#counter { font-size: .82rem; color: var(--muted); min-width: 52px; text-align: center; }
+
+.tag {
+  font-size: .7rem; letter-spacing: .16em; text-transform: uppercase;
+  font-weight: 700; color: var(--blue); margin-bottom: 12px;
+}
+.big {
+  font-size: 2.4rem; font-weight: 800; line-height: 1.15; color: #fff;
+  margin-bottom: 10px;
+}
+.big .b { color: var(--blue); }
+.big .g { color: var(--green); }
+.big .r { color: var(--red); }
+.sub {
+  font-size: 1rem; color: var(--muted); line-height: 1.7; max-width: 720px;
+}
+code {
+  font-family: 'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size: .92em; background: rgba(255,255,255,.07);
+  padding: 1px 6px; border-radius: 4px;
+}
+
+.row  { display: flex; gap: 20px; }
+.col  { display: flex; flex-direction: column; gap: 12px; }
+.f1   { flex: 1; }
+.mt   { margin-top: 20px; }
+.mt8  { margin-top: 8px; }
+
+.box {
+  background: var(--card);
+  border: 1px solid rgba(124,158,248,.2);
+  border-radius: 14px; padding: 20px 24px;
+}
+.box-title {
+  font-size: .7rem; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 700; margin-bottom: 12px;
+}
+
+.term {
+  background: #040410; border: 1px solid #1a1a3a;
+  border-radius: 10px; overflow: hidden;
+  font-family: 'Cascadia Code','Fira Code',Consolas,monospace;
+  font-size: .85rem; line-height: 1.85;
+}
+.term-bar {
+  background: #10102a; padding: 8px 14px;
+  display: flex; gap: 7px; align-items: center;
+  border-bottom: 1px solid #1a1a3a;
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.d-r { background: #ff5f56; } .d-y { background: #ffbd2e; } .d-g { background: #27c93f; }
+.term-body { padding: 14px 18px; color: #c9d1d9; }
+.t-p { color: var(--green); } .t-c { color: #89b4fa; }
+.t-e { color: var(--red);   } .t-d { color: var(--muted); }
+.t-o { color: var(--green); }
+
+.pkg {
+  font-family: monospace; font-size: .82rem;
+  padding: 6px 12px; border-radius: 7px;
+}
+.pkg-b { background: rgba(124,158,248,.12); color: var(--blue);  border-left: 3px solid var(--blue); }
+.pkg-g { background: rgba(52,211,153,.1);   color: var(--green); border-left: 3px solid var(--green); }
+.pkg-r { background: rgba(248,113,113,.1);  color: var(--red);   border-left: 3px solid var(--red); }
+.pkg-y { background: rgba(251,191,36,.1);   color: var(--yellow);border-left: 3px solid var(--yellow); }
+.pkg-m { background: rgba(255,255,255,.04); color: var(--muted); border-left: 3px solid #2d2d5a; }
+
+.callout {
+  border-left: 3px solid var(--blue);
+  padding: 10px 16px;
+  background: rgba(124,158,248,.06);
+  border-radius: 0 8px 8px 0;
+  font-size: .85rem; line-height: 1.65; color: var(--muted);
+}
+.callout.g { border-color: var(--green); background: rgba(52,211,153,.06); }
+.callout.r { border-color: var(--red);   background: rgba(248,113,113,.06); }
+.callout.y { border-color: var(--yellow);background: rgba(251,191,36,.06); }
+
+.arr {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 4px; flex-shrink: 0;
+  font-size: .68rem; color: var(--muted); min-width: 52px;
+}
+.arr span { font-size: 1.6rem; color: var(--blue); line-height: 1; }
+</style>
+</head>
+<body>
+
+<div id="bar"></div>
+<div id="deck">
+
+
+<!-- ════════════════════════════════════════════════════════════
+     СЛАЙД 1 — Вопрос
+════════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s1">
+
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:24px; max-width:760px;">
+
+    <div class="tag">Python · Лабораторная работа 11</div>
+
+    <div class="big" style="font-size:2.8rem;">
+      Зачем нужна<br>
+      <span class="b">виртуальная среда?</span>
+    </div>
+
+    <div class="sub" style="font-size:1.05rem;">
+      Установить пакеты глобально — просто и удобно,<br>
+      пока у вас <strong style="color:#fff;">один проект</strong>.<br>
+      Как только проектов становится два — начинаются проблемы.
+    </div>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:8px;">
+      <div style="padding:8px 18px; background:rgba(124,158,248,.1); border:1px solid rgba(124,158,248,.3); border-radius:30px; font-size:.82rem; color:var(--blue);">🔒 Изоляция</div>
+      <div style="padding:8px 18px; background:rgba(52,211,153,.1);  border:1px solid rgba(52,211,153,.3);  border-radius:30px; font-size:.82rem; color:var(--green);">📦 Воспроизводимость</div>
+      <div style="padding:8px 18px; background:rgba(251,191,36,.1);  border:1px solid rgba(251,191,36,.3);  border-radius:30px; font-size:.82rem; color:var(--yellow);">🚀 Переносимость</div>
+    </div>
+
+  </div>
+
+  <div style="font-size:.78rem; color:var(--muted);">
+    Нажмите <kbd style="background:var(--card); border:1px solid rgba(124,158,248,.3); border-radius:4px; padding:2px 8px;">→</kbd> для продолжения
+  </div>
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     СЛАЙД 2 — Проблема
+════════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s2">
+
+  <div class="tag">Проблема</div>
+  <div class="big">Два проекта.<br><span class="r">Один Python. Один конфликт.</span></div>
+  <div class="sub">Python хранит только <strong style="color:#fff;">одну версию каждого пакета</strong>. Установка новой версии автоматически удаляет старую — и ломает проект, который на неё рассчитывал.</div>
+
+  <div class="row mt" style="flex:1; align-items:center; gap:0;">
+
+    <!-- Старый проект -->
+    <div class="box f1" style="border-color:rgba(124,158,248,.35);">
+      <div class="box-title" style="color:var(--blue);">📁 Старый проект</div>
+      <div class="col" style="gap:7px;">
+        <div class="pkg pkg-b">Flask == 2.3</div>
+        <div class="pkg pkg-b">requests == 2.25</div>
+      </div>
+      <div class="callout mt8" style="font-size:.8rem;">Написан год назад. Работает с API Flask 2. Клиент использует его каждый день.</div>
+    </div>
+
+    <!-- Системный Python -->
+    <div style="display:flex; flex-direction:column; align-items:center; gap:10px; padding:0 24px; flex-shrink:0;">
+      <div style="font-size:.72rem; color:var(--muted); text-align:center; max-width:100px;">оба используют Python</div>
+      <div class="box" style="text-align:center; min-width:160px; border-color:rgba(248,113,113,.5);">
+        <div style="font-size:2.2rem; margin-bottom:6px;">🐍</div>
+        <div style="font-weight:700; font-size:.9rem; margin-bottom:4px;">Системный Python</div>
+        <div style="font-size:.72rem; color:var(--muted); font-family:monospace; margin-bottom:12px;">/usr/lib/python3/<br>site-packages/</div>
+        <div style="background:rgba(248,113,113,.15); border:1px solid rgba(248,113,113,.4); border-radius:8px; padding:10px; font-size:.78rem;">
+          <div style="color:var(--red); font-weight:700; font-size:1rem; margin-bottom:4px;">⚠ КОНФЛИКТ</div>
+          <div style="color:var(--muted);">Flask 2.3 <em>или</em> 3.0?<br>Одновременно — нельзя.</div>
+        </div>
+      </div>
+      <div style="font-size:.72rem; color:var(--muted); text-align:center; max-width:100px;">оба используют Python</div>
+    </div>
+
+    <!-- Новый проект -->
+    <div class="box f1" style="border-color:rgba(52,211,153,.35);">
+      <div class="box-title" style="color:var(--green);">📁 Новый проект</div>
+      <div class="col" style="gap:7px;">
+        <div class="pkg pkg-g">Flask == 3.0</div>
+        <div class="pkg pkg-g">requests == 2.31</div>
+      </div>
+      <div class="callout g mt8" style="font-size:.8rem;">Начат сегодня. Требует актуальных функций Flask 3 и исправлений безопасности.</div>
+    </div>
+
+  </div>
+
+  <div class="row mt" style="gap:14px;">
+    <div class="callout r f1">
+      <strong>Установить Flask 3.0:</strong> pip автоматически удалит Flask 2.3 — старый проект перестанет работать.
+    </div>
+    <div class="callout r f1">
+      <strong>Оставить Flask 2.3:</strong> новый проект не получит нужные функции. Код придётся переписывать.
+    </div>
+    <div class="callout y f1">
+      <strong>Третьего варианта нет</strong> — без изоляции приходится выбирать, кто пострадает.
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     СЛАЙД 3 — Решение
+════════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s3">
+
+  <div class="tag">Решение</div>
+  <div class="big">Каждый проект получает<br><span class="g">свой личный Python</span></div>
+  <div class="sub"><strong style="color:#fff;">Виртуальная среда</strong> — это папка внутри проекта, содержащая собственный интерпретатор Python и собственный pip. Пакеты, установленные в неё, невидимы для всех остальных проектов.</div>
+
+  <div class="row mt" style="flex:1; gap:20px; align-items:stretch;">
+
+    <div class="box f1" style="border-color:rgba(124,158,248,.4);">
+      <div class="box-title" style="color:var(--blue);">📁 old_project/</div>
+      <div style="border:1px dashed rgba(52,211,153,.4); border-radius:10px; padding:14px; background:rgba(52,211,153,.04);">
+        <div style="font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--green); font-weight:700; margin-bottom:10px;">📦 .venv/ (изолированная)</div>
+        <div class="col" style="gap:6px;">
+          <div class="pkg pkg-g">🐍 python (свой)</div>
+          <div class="pkg pkg-g">Flask 2.3 ✓</div>
+          <div class="pkg pkg-g">requests 2.25 ✓</div>
+        </div>
+      </div>
+      <div class="callout g mt8" style="font-size:.8rem;">Полностью изолирована. Никакой другой проект не может изменить эти пакеты.</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; flex-shrink:0; min-width:100px;">
+      <div style="font-size:2rem; color:var(--green);">✓</div>
+      <div style="width:1px; height:60px; background:rgba(124,158,248,.15);"></div>
+      <div style="font-size:.78rem; color:var(--green); font-weight:700; text-align:center;">Нет<br>конфликта</div>
+      <div style="width:1px; height:60px; background:rgba(124,158,248,.15);"></div>
+      <div style="font-size:2rem; color:var(--green);">✓</div>
+    </div>
+
+    <div class="box f1" style="border-color:rgba(52,211,153,.4);">
+      <div class="box-title" style="color:var(--green);">📁 new_project/</div>
+      <div style="border:1px dashed rgba(52,211,153,.4); border-radius:10px; padding:14px; background:rgba(52,211,153,.04);">
+        <div style="font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--green); font-weight:700; margin-bottom:10px;">📦 .venv/ (изолированная)</div>
+        <div class="col" style="gap:6px;">
+          <div class="pkg pkg-g">🐍 python (свой)</div>
+          <div class="pkg pkg-g">Flask 3.0 ✓</div>
+          <div class="pkg pkg-g">requests 2.31 ✓</div>
+        </div>
+      </div>
+      <div class="callout g mt8" style="font-size:.8rem;">Имеет Flask 3.0 — и никак не влияет на старый проект.</div>
+    </div>
+
+  </div>
+
+  <div class="row mt" style="gap:16px; align-items:stretch;">
+    <div class="box f1">
+      <div class="box-title">Создать среду</div>
+      <div class="term">
+        <div class="term-body" style="font-size:.88rem; padding:12px 16px;">
+<span class="t-p">$</span> <span class="t-c">python3 -m venv .venv</span></div>
+      </div>
+      <div class="callout mt8" style="font-size:.78rem;">Создаёт папку <code>.venv/</code> внутри проекта со своим Python и pip.</div>
+    </div>
+    <div class="box f1">
+      <div class="box-title">Активировать</div>
+      <div class="term">
+        <div class="term-body" style="font-size:.88rem; padding:12px 16px;">
+<span class="t-p">$</span> <span class="t-c">source .venv/bin/activate</span>
+<span class="t-o">(.venv)</span> <span class="t-p">user@host:~$</span></div>
+      </div>
+      <div class="callout mt8" style="font-size:.78rem;">Префикс <code>(.venv)</code> в строке приглашения подтверждает, что среда активна.</div>
+    </div>
+    <div class="box f1">
+      <div class="box-title">Выйти из среды</div>
+      <div class="term">
+        <div class="term-body" style="font-size:.88rem; padding:12px 16px;">
+<span class="t-o">(.venv)</span> <span class="t-p">$</span> <span class="t-c">deactivate</span>
+<span class="t-p">$</span> <span class="t-d"># строка приглашения обычная</span></div>
+      </div>
+      <div class="callout mt8" style="font-size:.78rem;">Всегда деактивируйте среду перед переходом к другому проекту.</div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     СЛАЙД 4 — Переносимость и requirements.txt
+════════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s4">
+
+  <div class="tag">Вторая проблема — Переносимость</div>
+  <div class="big">На вашем компьютере работает.<br><span class="r">На другом — нет.</span></div>
+  <div class="sub">Даже если конфликтов нет, без записи зависимостей ни коллега, ни вы сами на другом компьютере не сможете воспроизвести рабочую среду.</div>
+
+  <div class="row mt" style="gap:20px; flex:1; align-items:stretch;">
+
+    <div class="col f1">
+      <div style="font-weight:700; font-size:.85rem; color:var(--green); margin-bottom:4px;">✓ Ваш компьютер — работает</div>
+      <div class="box" style="flex:1; border-color:rgba(52,211,153,.3);">
+        <div style="font-family:monospace; font-size:.82rem; line-height:2.1;">
+          <div style="color:var(--muted);">Flask 3.0.3 &nbsp;&nbsp;← установили в первый месяц</div>
+          <div style="color:var(--muted);">Werkzeug 3.0 &nbsp;← установился автоматически</div>
+          <div style="color:var(--muted);">Jinja2 3.1.4 &nbsp;← установился автоматически</div>
+          <div style="color:var(--muted);">... ещё 10 пакетов ...</div>
+        </div>
+        <div class="callout g mt8" style="font-size:.8rem;">Нужная комбинация сложилась случайно — за несколько месяцев работы.</div>
+      </div>
+    </div>
+
+    <div class="arr" style="align-self:center;">
+      <span>→</span>
+      <div style="text-align:center;">git clone<br>или USB</div>
+    </div>
+
+    <div class="col f1">
+      <div style="font-weight:700; font-size:.85rem; color:var(--red); margin-bottom:4px;">✗ Компьютер коллеги — ошибки</div>
+      <div class="term f1">
+        <div class="term-bar"><div class="dot d-r"></div><div class="dot d-y"></div><div class="dot d-g"></div></div>
+        <div class="term-body" style="font-size:.82rem;">
+<span class="t-p">$</span> <span class="t-c">python app.py</span>
+<span class="t-e">ModuleNotFoundError:</span>
+<span class="t-e">  Нет модуля с именем 'flask'</span>
+<span class="t-p">$</span> <span class="t-c">pip install flask && python app.py</span>
+<span class="t-e">ImportError: cannot import 'Markup'</span>
+<span class="t-d"># неверная версия Werkzeug</span>
+<span class="t-e">... часы отладки ...</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="row mt" style="gap:16px;">
+    <div class="callout r" style="flex:.8;">
+      <strong>Причина:</strong> файл <code>requirements.txt</code> не был сохранён. Коллега не знает, какие версии пакетов вы использовали.
+    </div>
+    <div class="box f1" style="border-color:rgba(251,191,36,.4);">
+      <div class="box-title" style="color:var(--yellow);">Решение — две команды</div>
+      <div class="term">
+        <div class="term-body" style="font-size:.85rem; line-height:2.1;">
+<span class="t-d"># Вы: сохранить среду в файл</span>
+<span class="t-p">$</span> <span class="t-c">pip freeze > requirements.txt</span>
+<span class="t-d"># Коллега: точно воспроизвести её</span>
+<span class="t-p">$</span> <span class="t-c">pip install -r requirements.txt</span></div>
+      </div>
+    </div>
+    <div class="box f1" style="border-color:rgba(52,211,153,.4);">
+      <div class="box-title" style="color:var(--green);">Как выглядит requirements.txt</div>
+      <div class="col" style="gap:5px; margin-top:4px;">
+        <div class="pkg pkg-g">Flask==3.0.3</div>
+        <div class="pkg pkg-g">Werkzeug==3.0.3</div>
+        <div class="pkg pkg-g">Jinja2==3.1.4</div>
+        <div class="pkg pkg-m">... точные версии, зафиксированы</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     СЛАЙД 5 — Реальный пример: Flask
+════════════════════════════════════════════════════════════════ -->
+<div class="slide" id="s5">
+
+  <div class="tag">Реальный пример — Упражнение с Flask (Часть F лабораторной работы)</div>
+  <div class="big">Указано <span class="b">4 пакета</span>.<br>Установлено <span class="g">13 пакетов</span>.</div>
+  <div class="sub">Реальные фреймворки зависят от множества других библиотек. Виртуальная среда устанавливает все 13 пакетов в нужных версиях — и не затрагивает ничего лишнего в системе.</div>
+
+  <div class="row mt" style="flex:1; gap:0; align-items:center;">
+
+    <div class="col" style="min-width:210px; gap:10px;">
+      <div style="font-size:.75rem; color:var(--yellow); font-weight:700; letter-spacing:.1em; text-transform:uppercase;">📄 requirements.txt</div>
+      <div class="col" style="gap:7px;">
+        <div class="pkg pkg-y" style="font-size:.85rem; padding:8px 14px;">Flask</div>
+        <div class="pkg pkg-y" style="font-size:.85rem; padding:8px 14px;">Flask-SQLAlchemy</div>
+        <div class="pkg pkg-y" style="font-size:.85rem; padding:8px 14px;">Flask-Login</div>
+        <div class="pkg pkg-y" style="font-size:.85rem; padding:8px 14px;">email-validator</div>
+      </div>
+      <div class="term">
+        <div class="term-body" style="font-size:.8rem;">
+<span class="t-c">pip install -r</span>
+<span class="t-c">  requirements.txt</span></div>
+      </div>
+    </div>
+
+    <div class="arr" style="gap:6px; padding:0 20px;">
+      <span>⟹</span>
+      <div style="text-align:center; font-size:.72rem; line-height:1.5;">pip разрешает<br>все зависимости<br>автоматически</div>
+    </div>
+
+    <div class="col f1" style="gap:8px;">
+      <div style="font-size:.75rem; color:var(--green); font-weight:700; letter-spacing:.1em; text-transform:uppercase;">📦 pip list — что реально установлено</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <div class="pkg pkg-g">Flask 3.0.3 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">вы указали</span></div>
+        <div class="pkg pkg-g">Flask-SQLAlchemy <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">вы указали</span></div>
+        <div class="pkg pkg-g">Flask-Login <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">вы указали</span></div>
+        <div class="pkg pkg-g">email-validator <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">вы указали</span></div>
+        <div class="pkg pkg-b">Werkzeug 3.0.3 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен Flask</span></div>
+        <div class="pkg pkg-b">Jinja2 3.1.4 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен Flask</span></div>
+        <div class="pkg pkg-b">click 8.1.7 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен Flask</span></div>
+        <div class="pkg pkg-b">SQLAlchemy 2.0.30 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен Flask-SQLAlchemy</span></div>
+        <div class="pkg pkg-b">MarkupSafe 2.1.5 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен Jinja2</span></div>
+        <div class="pkg pkg-b">itsdangerous 2.2.0 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен Flask</span></div>
+        <div class="pkg pkg-b">blinker 1.8.2 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен Flask</span></div>
+        <div class="pkg pkg-b">greenlet 3.0.3 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">нужен SQLAlchemy</span></div>
+        <div class="pkg pkg-b">pip 23.0.1 <span style="color:var(--muted); font-size:.72rem; margin-left:4px;">встроен в venv</span></div>
+      </div>
+      <div class="row" style="gap:10px; margin-top:2px;">
+        <div style="display:flex; align-items:center; gap:6px; font-size:.76rem;">
+          <div style="width:12px; height:12px; border-radius:2px; background:rgba(52,211,153,.5);"></div>
+          <span style="color:var(--muted);">Указан явно (4 штуки)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; font-size:.76rem;">
+          <div style="width:12px; height:12px; border-radius:2px; background:rgba(124,158,248,.5);"></div>
+          <span style="color:var(--muted);">Транзитивные — pip разрешил автоматически (9 дополнительных)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout y mt" style="font-size:.85rem;">
+    <strong>Без виртуальной среды:</strong> все 13 пакетов попали бы в глобальный Python и могли конфликтовать с другими проектами.&nbsp;&nbsp;|&nbsp;&nbsp;<strong>С виртуальной средой:</strong> они находятся только в <code>flask_blog_practice/.venv/</code> и не затрагивают ничего лишнего.
+  </div>
+
+</div>
+
+
+</div><!-- #deck -->
+
+<div id="nav">
+  <button id="prev">&#8592;</button>
+  <div id="counter"></div>
+  <button id="next">&#8594;</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let cur = 0;
+
+  function go(n) {
+    if (n < 0 || n >= total || n === cur) return;
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('out');
+    const prev = cur;
+    cur = n;
+    slides[cur].classList.add('active');
+    setTimeout(() => slides[prev].classList.remove('out'), 500);
+    document.getElementById('counter').textContent = `${cur+1} / ${total}`;
+    document.getElementById('bar').style.width = `${((cur+1)/total)*100}%`;
+    document.getElementById('prev').disabled = cur === 0;
+    document.getElementById('next').disabled = cur === total-1;
+  }
+
+  document.getElementById('prev').addEventListener('click', () => go(cur-1));
+  document.getElementById('next').addEventListener('click', () => go(cur+1));
+  document.addEventListener('keydown', e => {
+    if (e.key==='ArrowRight'||e.key===' ') { go(cur+1); e.preventDefault(); }
+    if (e.key==='ArrowLeft')               { go(cur-1); e.preventDefault(); }
+    if (e.key==='Home')                    { go(0); }
+    if (e.key==='End')                     { go(total-1); }
+  });
+
+  go(0);
+</script>
+</body>
+</html>
