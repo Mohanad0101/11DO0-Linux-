@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 11 — Python System Programming on Linux</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f0f1a;
+    --surface:   #1a1a2e;
+    --card:      #16213e;
+    --accent:    #00d4ff;
+    --accent2:   #7c3aed;
+    --green:     #22c55e;
+    --red:       #ef4444;
+    --yellow:    #f59e0b;
+    --orange:    #f97316;
+    --text:      #e2e8f0;
+    --muted:     #94a3b8;
+    --border:    rgba(0,212,255,0.2);
+    --code-bg:   #0d1117;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  /* ── Slide Container ─────────────────────────────────────────────────── */
+  #deck {
+    width: 100vw; height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 40px 60px 30px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.45s ease, transform 0.45s ease;
+    transform: translateX(60px);
+    overflow: hidden;
+  }
+  .slide.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateX(0);
+  }
+  .slide.prev {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+
+  /* ── Slide Header ────────────────────────────────────────────────────── */
+  .slide-header {
+    margin-bottom: 28px;
+  }
+  .slide-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .slide-title {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #fff;
+  }
+  .slide-title span { color: var(--accent); }
+  .slide-sub {
+    font-size: 1.05rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── Navigation ─────────────────────────────────────────────────────── */
+  #nav {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(26,26,46,0.92);
+    border: 1px solid var(--border);
+    border-radius: 40px;
+    padding: 10px 24px;
+    backdrop-filter: blur(8px);
+    z-index: 100;
+  }
+  #nav button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--accent);
+    border-radius: 50%;
+    width: 36px; height: 36px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #nav button:hover { background: var(--accent); color: var(--bg); }
+  #counter {
+    font-size: 0.85rem;
+    color: var(--muted);
+    min-width: 56px;
+    text-align: center;
+  }
+
+  /* ── Progress Bar ────────────────────────────────────────────────────── */
+  #progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.4s ease;
+    z-index: 99;
+  }
+
+  /* ── Slide Number (top-right) ─────────────────────────────────────────── */
+  #slide-num {
+    position: fixed;
+    top: 18px; right: 28px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    z-index: 99;
+  }
+
+  /* ── Utility layout helpers ──────────────────────────────────────────── */
+  .row    { display: flex; gap: 24px; align-items: stretch; }
+  .col    { display: flex; flex-direction: column; gap: 16px; }
+  .flex1  { flex: 1; }
+  .center { display: flex; align-items: center; justify-content: center; flex-direction: column; }
+  .gap8   { gap: 8px; }
+  .gap12  { gap: 12px; }
+
+  /* ── Card ─────────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .card-title {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* ── Code block ──────────────────────────────────────────────────────── */
+  .code {
+    background: var(--code-bg);
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+    color: #c9d1d9;
+  }
+  .kw  { color: #ff79c6; }   /* keyword / operator */
+  .fn  { color: #8be9fd; }   /* function / method */
+  .st  { color: #f1fa8c; }   /* string */
+  .co  { color: #6272a4; font-style: italic; } /* comment */
+  .nm  { color: #bd93f9; }   /* number / const */
+  .cm  { color: #50fa7b; }   /* command (bash) */
+  .fl  { color: #ffb86c; }   /* flag */
+
+  /* ── Pill badge ──────────────────────────────────────────────────────── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .pill-blue   { background: rgba(0,212,255,0.15); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .pill-green  { background: rgba(34,197,94,0.15); color: var(--green);  border: 1px solid rgba(34,197,94,0.3); }
+  .pill-red    { background: rgba(239,68,68,0.15);  color: var(--red);   border: 1px solid rgba(239,68,68,0.3); }
+  .pill-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+  .pill-purple { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+
+  /* ── Arrow connector ─────────────────────────────────────────────────── */
+  .arrow {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+    font-size: 1.4rem;
+    padding: 0 4px;
+    flex-shrink: 0;
+    align-self: center;
+  }
+
+  /* ── Box with colored left border ────────────────────────────────────── */
+  .note {
+    border-left: 3px solid var(--accent);
+    padding: 10px 16px;
+    background: rgba(0,212,255,0.06);
+    border-radius: 0 8px 8px 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .note-green { border-color: var(--green); background: rgba(34,197,94,0.06); }
+  .note-red   { border-color: var(--red);   background: rgba(239,68,68,0.06); }
+  .note-yellow{ border-color: var(--yellow); background: rgba(245,158,11,0.06); }
+
+  /* ── Op-row (operation table row) ───────────────────────────────────── */
+  .op-table { display: flex; flex-direction: column; gap: 6px; }
+  .op-row {
+    display: grid;
+    grid-template-columns: 2.2fr 60px 3fr;
+    gap: 0;
+    align-items: center;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .op-label {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); padding: 4px 8px;
+    background: rgba(255,255,255,0.03);
+    font-weight: 600;
+  }
+  .op-bash {
+    background: rgba(0,212,255,0.08);
+    padding: 9px 16px;
+    font-family: monospace;
+    font-size: 0.88rem;
+    color: var(--accent);
+    border-radius: 6px 0 0 6px;
+  }
+  .op-arr {
+    background: rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: center;
+    padding: 9px 0;
+    color: var(--muted);
+    font-size: 1rem;
+  }
+  .op-py {
+    background: rgba(124,58,237,0.12);
+    padding: 9px 16px;
+    font-family: monospace;
+    font-size: 0.86rem;
+    color: #a78bfa;
+    border-radius: 0 6px 6px 0;
+  }
+  .op-row-header { font-weight: 700; }
+  .op-bash-h { background: rgba(0,212,255,0.18); color: var(--accent); font-weight: 700; font-size: 0.8rem; }
+  .op-py-h   { background: rgba(124,58,237,0.22); color: #c4b5fd; font-weight: 700; font-size: 0.8rem; }
+
+  /* ── Sandbox diagram specific ─────────────────────────────────────────── */
+  .sandbox-boundary {
+    border: 2px dashed var(--green);
+    border-radius: 12px;
+    padding: 16px 20px;
+    position: relative;
+  }
+  .sandbox-boundary::before {
+    content: 'WORKSPACE (sandbox boundary)';
+    position: absolute; top: -11px; left: 16px;
+    background: var(--surface);
+    padding: 0 8px;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    color: var(--green);
+    font-weight: 700;
+  }
+  .fs-tree { font-family: monospace; font-size: 0.88rem; line-height: 2; }
+  .path-ok     { color: var(--green); }
+  .path-block  { color: var(--red); }
+
+  /* ── Lifecycle steps ──────────────────────────────────────────────────── */
+  .lifecycle {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 12px 0;
+  }
+  .lc-step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 18px 12px;
+    background: var(--card);
+    position: relative;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .lc-step:first-child { border-radius: 12px 0 0 12px; border-left: 1px solid var(--border); }
+  .lc-step:last-child  { border-radius: 0 12px 12px 0; border-right: 1px solid var(--border); }
+  .lc-step.active-step { background: rgba(0,212,255,0.1); border-color: var(--accent); }
+  .lc-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent2);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.82rem;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
+  }
+  .lc-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+    color: var(--accent);
+  }
+  .lc-cmd {
+    font-family: monospace;
+    font-size: 0.74rem;
+    color: var(--yellow);
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-bottom: 4px;
+  }
+  .lc-desc { font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+  .lc-conn {
+    width: 24px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  /* ── Dependency tree ──────────────────────────────────────────────────── */
+  .dep-tree {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .dep-root {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 20px;
+    background: rgba(245,158,11,0.12);
+    border: 2px solid var(--yellow);
+    border-radius: 10px;
+    min-width: 180px;
+    align-self: center;
+  }
+  .dep-root-title {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--yellow); font-weight: 700;
+  }
+  .dep-root-item {
+    font-family: monospace; font-size: 0.82rem; color: #fff;
+    background: rgba(245,158,11,0.1); border-radius: 4px; padding: 3px 8px;
+  }
+  .dep-lines {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: var(--muted);
+    font-size: 1.6rem;
+    align-self: center;
+  }
+  .dep-packages {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    flex: 1;
+  }
+  .dep-pkg {
+    font-family: monospace;
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border-left: 3px solid;
+  }
+  .dep-direct { border-color: var(--green); background: rgba(34,197,94,0.08); color: var(--green); }
+  .dep-trans  { border-color: var(--accent2); background: rgba(124,58,237,0.08); color: #a78bfa; }
+
+  /* ── Copy comparison ─────────────────────────────────────────────────── */
+  .copy-box {
+    flex: 1;
+    border-radius: 12px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .copy-wrong { border: 2px solid var(--red);   background: rgba(239,68,68,0.06); }
+  .copy-right { border: 2px solid var(--green); background: rgba(34,197,94,0.06); }
+  .copy-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+  .copy-file {
+    display: flex; align-items: center; gap: 8px;
+    font-family: monospace; font-size: 0.82rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+  .file-ok   { background: rgba(34,197,94,0.1);  color: var(--green); }
+  .file-bad  { background: rgba(239,68,68,0.1);  color: var(--red); }
+  .file-icon { font-size: 1rem; }
+
+  /* ── Resolve diagram ─────────────────────────────────────────────────── */
+  .resolve-box {
+    flex: 1;
+    border-radius: 10px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .resolve-ok  { border: 1px solid var(--green); background: rgba(34,197,94,0.06); }
+  .resolve-bad { border: 1px solid var(--red);   background: rgba(239,68,68,0.06); }
+  .resolve-step {
+    font-family: monospace; font-size: 0.84rem; padding: 6px 10px; border-radius: 5px;
+  }
+  .resolve-input  { background: rgba(0,212,255,0.1);   color: var(--accent); }
+  .resolve-arrow-v { text-align: center; color: var(--muted); font-size: 1rem; }
+  .resolve-output-ok  { background: rgba(34,197,94,0.12); color: var(--green); }
+  .resolve-output-bad { background: rgba(239,68,68,0.12); color: var(--red);   }
+
+  /* ── Architecture diagram ────────────────────────────────────────────── */
+  .arch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .arch-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+  }
+  .arch-box {
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-family: monospace;
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-align: center;
+    min-width: 160px;
+  }
+  .arch-json    { background: rgba(245,158,11,0.15); border: 1px solid var(--yellow); color: var(--yellow); }
+  .arch-cfg     { background: rgba(0,212,255,0.1);   border: 1px solid var(--accent); color: var(--accent); }
+  .arch-safe    { background: rgba(239,68,68,0.1);   border: 1px solid var(--red);    color: var(--red);    }
+  .arch-ops     { background: rgba(124,58,237,0.12); border: 1px solid #7c3aed;        color: #a78bfa;       }
+  .arch-cli     { background: rgba(34,197,94,0.1);   border: 1px solid var(--green);  color: var(--green);  }
+  .arch-ws      { background: rgba(255,255,255,0.05); border: 1px dashed #475569;      color: var(--muted);  }
+  .arch-user    { background: rgba(249,115,22,0.1);  border: 1px solid var(--orange); color: var(--orange); }
+  .arch-label   { font-size: 0.66rem; color: var(--muted); text-align: center; margin-top: 2px; }
+  .arch-v {
+    width: 2px; height: 22px; background: var(--border); margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .arch-v::after {
+    content: '▼';
+    position: absolute;
+    bottom: -2px;
+    font-size: 0.6rem;
+    color: var(--muted);
+  }
+  .arch-h {
+    height: 2px; width: 32px; background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .arch-h::after {
+    content: '►';
+    position: absolute;
+    right: -2px;
+    font-size: 0.6rem;
+    color: var(--muted);
+  }
+
+  /* ── Title slide specific ────────────────────────────────────────────── */
+  .title-hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .title-tag {
+    font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600;
+  }
+  .title-main {
+    font-size: 2.6rem; font-weight: 800; line-height: 1.15;
+    color: #fff;
+  }
+  .title-main span { color: var(--accent); }
+  .title-main em   { color: var(--accent2); font-style: normal; }
+  .title-desc {
+    font-size: 1.05rem; color: var(--muted); max-width: 640px; line-height: 1.7;
+  }
+  .title-pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  .title-themes {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px;
+  }
+  .theme-card {
+    border-radius: 10px; padding: 14px 18px;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+  .theme-card h3 { font-size: 0.9rem; color: var(--accent); margin-bottom: 4px; }
+  .theme-card p  { font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+
+  /* ── Conflict diagram ────────────────────────────────────────────────── */
+  .conflict-wrap {
+    display: flex;
+    gap: 20px;
+    align-items: stretch;
+    flex: 1;
+  }
+  .proj-box {
+    flex: 1;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .proj-title { font-weight: 700; font-size: 0.88rem; }
+  .proj-dep   { font-family: monospace; font-size: 0.82rem; color: var(--yellow); background: rgba(245,158,11,0.1); border-radius: 5px; padding: 4px 8px; }
+  .sys-python-box {
+    background: var(--card);
+    border: 2px solid var(--red);
+    border-radius: 12px;
+    padding: 18px 22px;
+    text-align: center;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    align-self: center;
+  }
+
+  /* spacing helpers */
+  .mt4  { margin-top: 4px; }
+  .mt8  { margin-top: 8px; }
+  .mt12 { margin-top: 12px; }
+  .mb8  { margin-bottom: 8px; }
+  .small { font-size: 0.8rem; }
+  .mono  { font-family: monospace; }
+  .bold  { font-weight: 700; }
+  .accent{ color: var(--accent); }
+  .green { color: var(--green); }
+  .red   { color: var(--red); }
+  .yellow{ color: var(--yellow); }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="slide-num"></div>
+
+<div id="deck">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 1 — Title
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s1">
+    <div class="title-hero">
+      <div class="title-tag">Lab 11 · Python System Programming on Linux</div>
+      <div class="title-main">
+        Building a<br>
+        <span>File Manager</span><br>
+        with <em>Python</em>
+      </div>
+      <div class="title-desc">
+        From virtual environments and reproducible dependencies to safe path handling,
+        file operations, and an interactive command-line interface — all in standard Python.
+      </div>
+      <div class="title-pills">
+        <span class="pill pill-blue">🐍 Python 3 · pathlib · shutil</span>
+        <span class="pill pill-purple">📦 venv · pip · requirements.txt</span>
+        <span class="pill pill-green">🐧 Linux CLI · Vim · Git</span>
+        <span class="pill pill-yellow">🔒 Sandbox security</span>
+      </div>
+      <div class="title-themes">
+        <div class="theme-card">
+          <h3>Theme 1 — Isolated Environments</h3>
+          <p>Create virtual environments, pin dependencies, and prove that <code>requirements.txt</code> alone is enough to rebuild a project anywhere.</p>
+        </div>
+        <div class="theme-card">
+          <h3>Theme 2 — File System Operations</h3>
+          <p>Map Bash commands to Python standard-library equivalents. Build a sandboxed file manager that blocks path-escaping attacks.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 2 — The Problem: Why venv?
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s2">
+    <div class="slide-header">
+      <div class="slide-label">Virtual Environments — Motivation</div>
+      <div class="slide-title">The Problem: <span>Package Conflicts</span></div>
+      <div class="slide-sub">What happens when two projects need different versions of the same library?</div>
+    </div>
+
+    <div class="row" style="flex:1; align-items:center; gap:16px;">
+
+      <!-- Project A -->
+      <div class="proj-box" style="border-color:rgba(0,212,255,0.3);">
+        <div class="proj-title accent">📁 Project A — Blog App</div>
+        <div class="proj-dep">Flask==2.0.1</div>
+        <div class="proj-dep">SQLAlchemy==1.4.0</div>
+        <div class="note" style="margin-top:6px;">Developed 2 years ago.<br>Depends on Flask 2 API.</div>
+      </div>
+
+      <div class="arrow" style="flex-direction:column; gap:4px;">
+        <div style="font-size:0.7rem; color:var(--muted);">both need</div>
+        <div>→</div>
+      </div>
+
+      <!-- System Python -->
+      <div class="sys-python-box">
+        <div style="font-size:2rem;">🐍</div>
+        <div class="bold" style="font-size:0.95rem;">System Python</div>
+        <div class="small muted">one shared<br>site-packages</div>
+        <div style="margin-top:8px; padding:8px 12px; background:rgba(239,68,68,0.15); border:1px solid var(--red); border-radius:8px; font-size:0.78rem; color:var(--red); font-weight:700;">
+          ✗ CONFLICT<br>
+          <span style="font-weight:400; font-size:0.72rem;">Cannot install<br>both versions</span>
+        </div>
+      </div>
+
+      <div class="arrow" style="flex-direction:column; gap:4px;">
+        <div style="font-size:0.7rem; color:var(--muted);">both need</div>
+        <div>→</div>
+      </div>
+
+      <!-- Project B -->
+      <div class="proj-box" style="border-color:rgba(124,58,237,0.4);">
+        <div class="proj-title" style="color:#a78bfa;">📁 Project B — REST API</div>
+        <div class="proj-dep">Flask==3.0.3</div>
+        <div class="proj-dep">Flask-Login==0.6.3</div>
+        <div class="note" style="margin-top:6px;">Current project.<br>Uses Flask 3 syntax.</div>
+      </div>
+    </div>
+
+    <div class="note note-red mt12">
+      <strong>Root cause:</strong> The system Python has a single shared <code>site-packages</code> directory.
+      Installing <code>Flask==3.0.3</code> removes <code>Flask==2.0.1</code>. You can only have <em>one</em> version at a time.
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 3 — Solution: The Virtual Environment
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s3">
+    <div class="slide-header">
+      <div class="slide-label">Virtual Environments — Solution</div>
+      <div class="slide-title">The Fix: <span>One venv Per Project</span></div>
+      <div class="slide-sub">Each project gets its own private Python interpreter, pip, and package directory.</div>
+    </div>
+
+    <div class="row" style="flex:1; align-items:stretch; gap:20px;">
+
+      <!-- Project A with venv -->
+      <div style="flex:1; border:1px solid rgba(0,212,255,0.3); border-radius:12px; padding:18px; background:var(--card); display:flex; flex-direction:column; gap:10px;">
+        <div class="proj-title accent">📁 Project A</div>
+        <div style="border:1px dashed rgba(34,197,94,0.5); border-radius:8px; padding:12px; background:rgba(34,197,94,0.05);">
+          <div style="font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--green); font-weight:700; margin-bottom:8px;">📦 .venv/</div>
+          <div class="dep-pkg dep-direct" style="margin-bottom:4px;">🐍 python (private)</div>
+          <div class="dep-pkg dep-direct" style="margin-bottom:4px;">pip (private)</div>
+          <div class="dep-pkg dep-direct" style="margin-bottom:4px;">Flask 2.0.1 ✓</div>
+          <div class="dep-pkg dep-direct">SQLAlchemy 1.4.0 ✓</div>
+        </div>
+        <div class="note note-green" style="font-size:0.78rem;">Isolated — untouched by any other project's installs.</div>
+      </div>
+
+      <!-- System Python (now just a base) -->
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; min-width:140px;">
+        <div style="font-size:2rem;">🐍</div>
+        <div style="font-size:0.78rem; font-weight:700; color:var(--muted); text-align:center;">System Python<br><span style="font-weight:400; font-size:0.72rem;">(base — not used<br>directly)</span></div>
+        <div style="width:1px; height:50px; background:var(--border);"></div>
+        <div style="font-size:0.72rem; color:var(--green); text-align:center;">✓ No conflict</div>
+      </div>
+
+      <!-- Project B with venv -->
+      <div style="flex:1; border:1px solid rgba(124,58,237,0.4); border-radius:12px; padding:18px; background:var(--card); display:flex; flex-direction:column; gap:10px;">
+        <div class="proj-title" style="color:#a78bfa;">📁 Project B</div>
+        <div style="border:1px dashed rgba(34,197,94,0.5); border-radius:8px; padding:12px; background:rgba(34,197,94,0.05);">
+          <div style="font-size:0.68rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--green); font-weight:700; margin-bottom:8px;">📦 .venv/</div>
+          <div class="dep-pkg dep-trans" style="margin-bottom:4px;">🐍 python (private)</div>
+          <div class="dep-pkg dep-trans" style="margin-bottom:4px;">pip (private)</div>
+          <div class="dep-pkg dep-trans" style="margin-bottom:4px;">Flask 3.0.3 ✓</div>
+          <div class="dep-pkg dep-trans">Flask-Login 0.6.3 ✓</div>
+        </div>
+        <div class="note note-green" style="font-size:0.78rem;">Isolated — has Flask 3 without affecting Project A's Flask 2.</div>
+      </div>
+    </div>
+
+    <div class="row mt12" style="gap:12px;">
+      <div class="code" style="flex:1; font-size:0.82rem;">
+<span class="co"># Create the venv</span>
+<span class="cm">python3</span> <span class="fl">-m venv</span> .venv</div>
+      <div class="arrow">→</div>
+      <div class="code" style="flex:1.4; font-size:0.82rem;">
+<span class="co"># Activate it (prompt shows (.venv))</span>
+<span class="cm">source</span> .venv/bin/activate
+<span class="kw">(.venv)</span> user@host:~/project$</div>
+      <div class="arrow">→</div>
+      <div class="code" style="flex:1; font-size:0.82rem;">
+<span class="co"># Install into venv only</span>
+<span class="cm">pip install</span> flask</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 4 — The venv Lifecycle
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s4">
+    <div class="slide-header">
+      <div class="slide-label">Virtual Environments — Workflow</div>
+      <div class="slide-title">The <span>venv Lifecycle</span></div>
+      <div class="slide-sub">Five steps — performed once per project, in this order, every time you start a new Python project.</div>
+    </div>
+
+    <div class="lifecycle" style="flex-shrink:0;">
+      <div class="lc-step">
+        <div class="lc-num">1</div>
+        <div class="lc-name">CREATE</div>
+        <div class="lc-cmd">python3 -m venv .venv</div>
+        <div class="lc-desc">Creates a hidden <code>.venv/</code> folder containing a private interpreter, pip, and an empty site-packages.</div>
+      </div>
+      <div class="lc-conn">→</div>
+      <div class="lc-step active-step">
+        <div class="lc-num" style="background:var(--accent); color:var(--bg);">2</div>
+        <div class="lc-name">ACTIVATE</div>
+        <div class="lc-cmd">source .venv/bin/activate</div>
+        <div class="lc-desc">Prepends <code>.venv/bin</code> to <code>PATH</code>. Prompt shows <span class="accent">(.venv)</span>. Now <code>python</code> and <code>pip</code> point to the venv.</div>
+      </div>
+      <div class="lc-conn">→</div>
+      <div class="lc-step">
+        <div class="lc-num">3</div>
+        <div class="lc-name">INSTALL</div>
+        <div class="lc-cmd">pip install numpy</div>
+        <div class="lc-desc">Packages install into <code>.venv/lib/</code>, not the system. The system Python is completely untouched.</div>
+      </div>
+      <div class="lc-conn">→</div>
+      <div class="lc-step">
+        <div class="lc-num">4</div>
+        <div class="lc-name">USE</div>
+        <div class="lc-cmd">python hello.py</div>
+        <div class="lc-desc">Run scripts normally. They import from <code>.venv</code>'s site-packages, not the system's.</div>
+      </div>
+      <div class="lc-conn">→</div>
+      <div class="lc-step">
+        <div class="lc-num">5</div>
+        <div class="lc-name">DEACTIVATE</div>
+        <div class="lc-cmd">deactivate</div>
+        <div class="lc-desc">Restores the original <code>PATH</code>. The <span class="accent">(.venv)</span> prefix disappears. Always deactivate before switching projects.</div>
+      </div>
+    </div>
+
+    <div class="row mt12" style="gap:16px;">
+      <div class="card flex1">
+        <div class="card-title">What lives inside .venv/</div>
+        <div class="code" style="font-size:0.8rem; line-height:1.8;">
+.venv/
+├── bin/
+│   ├── <span class="fn">python</span>          <span class="co">← private interpreter</span>
+│   ├── <span class="fn">pip</span>             <span class="co">← private pip</span>
+│   └── <span class="fn">activate</span>        <span class="co">← the script you source</span>
+├── lib/
+│   └── python3.x/
+│       └── <span class="fn">site-packages</span>/ <span class="co">← installed packages go here</span>
+└── pyvenv.cfg          <span class="co">← records Python version</span></div>
+      </div>
+      <div class="card" style="min-width:260px;">
+        <div class="card-title">Key rule</div>
+        <div class="note" style="font-size:0.85rem; line-height:1.7;">
+          Never switch projects without running <strong><code>deactivate</code></strong> first.<br><br>
+          Using the wrong venv means the wrong Python version and the wrong package versions — errors that are hard to debug.
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 5 — requirements.txt: The Portability Contract
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s5">
+    <div class="slide-header">
+      <div class="slide-label">Virtual Environments — Reproducibility</div>
+      <div class="slide-title"><code>requirements.txt</code> — <span>The Portability Contract</span></div>
+      <div class="slide-sub">A venv is machine-specific. A requirements file is universal.</div>
+    </div>
+
+    <!-- Main flow -->
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+
+      <div class="card" style="text-align:center; min-width:160px;">
+        <div style="font-size:1.5rem; margin-bottom:6px;">📦</div>
+        <div class="bold small">Active venv</div>
+        <div class="small muted">.venv/ with numpy</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+        <div class="small muted">pip freeze</div>
+        <div style="font-size:1.4rem; color:var(--accent);">→</div>
+      </div>
+      <div class="card" style="text-align:center; min-width:180px; border-color:var(--yellow);">
+        <div style="font-size:1.5rem; margin-bottom:6px;">📄</div>
+        <div class="bold small yellow">requirements.txt</div>
+        <div class="code" style="font-size:0.8rem; margin-top:8px; text-align:left;">numpy==<span class="nm">1.26.4</span></div>
+        <div class="small muted mt4">pinned version</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:2px; min-width:100px;">
+        <div class="small muted" style="text-align:center;">share file<br>(not .venv!)</div>
+        <div style="font-size:1.4rem; color:var(--accent);">→</div>
+      </div>
+      <div class="card" style="text-align:center; min-width:200px; border-color:var(--green);">
+        <div style="font-size:1.5rem; margin-bottom:6px;">💻</div>
+        <div class="bold small green">Any machine</div>
+        <div class="code" style="font-size:0.76rem; margin-top:8px; text-align:left; line-height:1.7;">
+<span class="cm">python3</span> <span class="fl">-m</span> venv .venv
+<span class="cm">source</span> .venv/bin/activate
+<span class="cm">pip install</span> <span class="fl">-r</span> requirements.txt</div>
+      </div>
+      <div style="font-size:1.4rem; color:var(--green);">= ✓</div>
+      <div class="card" style="text-align:center; min-width:130px; border-color:var(--green);">
+        <div style="font-size:1.5rem; margin-bottom:6px;">📦</div>
+        <div class="bold small green">Same environment</div>
+        <div class="small muted">identical<br>numpy==1.26.4</div>
+      </div>
+    </div>
+
+    <!-- What to copy / not copy -->
+    <div class="row" style="gap:20px; flex:1;">
+      <div class="copy-box copy-wrong">
+        <div class="copy-title red">✗ Wrong Way — Do NOT Copy .venv</div>
+        <div class="small muted" style="margin-bottom:6px;">The <code>.venv/</code> directory contains absolute paths hardcoded to your machine. It will not work anywhere else.</div>
+        <div class="copy-file file-bad"><span class="file-icon">❌</span> .venv/ &nbsp;<span style="color:var(--muted); font-size:0.74rem;">(hundreds of MB, machine-specific)</span></div>
+        <div class="copy-file file-ok"><span class="file-icon">✓</span> hello_numpy.py</div>
+        <div class="copy-file file-ok"><span class="file-icon">✓</span> requirements.txt</div>
+      </div>
+      <div class="copy-box copy-right">
+        <div class="copy-title green">✓ Right Way — Copy Code + requirements.txt Only</div>
+        <div class="small muted" style="margin-bottom:6px;">Copy only source files and the requirements file. The recipient runs <code>pip install -r requirements.txt</code> to rebuild.</div>
+        <div class="copy-file file-bad"><span class="file-icon">🚫</span> .venv/ &nbsp;<span style="color:var(--muted); font-size:0.74rem;">(excluded — rebuild on destination)</span></div>
+        <div class="copy-file file-ok"><span class="file-icon">✓</span> hello_numpy.py</div>
+        <div class="copy-file file-ok"><span class="file-icon">✓</span> requirements.txt</div>
+      </div>
+      <div class="card" style="min-width:200px;">
+        <div class="card-title">Commands used in lab</div>
+        <div class="code" style="font-size:0.78rem; line-height:1.9;">
+<span class="co"># Export (Part D)</span>
+<span class="cm">pip freeze</span> > requirements.txt
+
+<span class="co"># Rebuild (Part E)</span>
+<span class="cm">python3</span> <span class="fl">-m</span> venv .venv
+<span class="cm">source</span> .venv/bin/activate
+<span class="cm">pip install</span> <span class="fl">-r</span> requirements.txt
+
+<span class="co"># Test same output?</span>
+<span class="cm">python</span> hello_numpy.py</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 6 — Real-World venv: The Dependency Tree (Flask)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s6">
+    <div class="slide-header">
+      <div class="slide-label">Virtual Environments — Real-World Scale (Part F)</div>
+      <div class="slide-title">Flask's <span>Dependency Tree</span></div>
+      <div class="slide-sub">4 packages listed in requirements.txt → 13 packages actually installed. venv manages the whole chain.</div>
+    </div>
+
+    <div class="row" style="flex:1; align-items:center; gap:20px;">
+
+      <!-- Left: requirements.txt -->
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div class="card-title" style="font-size:0.7rem; color:var(--yellow);">📄 requirements.txt (4 lines)</div>
+        <div class="dep-root">
+          <div class="dep-root-item">Flask</div>
+          <div class="dep-root-item">Flask-SQLAlchemy</div>
+          <div class="dep-root-item">Flask-Login</div>
+          <div class="dep-root-item">email-validator</div>
+        </div>
+        <div class="code" style="font-size:0.74rem; margin-top:4px;">pip install <span class="fl">-r</span> requirements.txt</div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0;">
+        <div class="small muted">pip resolves</div>
+        <div style="font-size:2rem; color:var(--accent);">⟹</div>
+        <div class="small muted">transitive<br>dependencies</div>
+      </div>
+
+      <!-- Right: all 13 packages -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+        <div class="card-title" style="font-size:0.7rem; color:var(--green);">📦 pip list (13 packages installed)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px;">
+          <div class="dep-pkg dep-direct">Flask 3.0.3 <span class="muted small">(direct)</span></div>
+          <div class="dep-pkg dep-direct">Flask-SQLAlchemy 3.1.1 <span class="muted small">(direct)</span></div>
+          <div class="dep-pkg dep-direct">Flask-Login 0.6.3 <span class="muted small">(direct)</span></div>
+          <div class="dep-pkg dep-direct">email-validator 2.1.0 <span class="muted small">(direct)</span></div>
+          <div class="dep-pkg dep-trans">Werkzeug 3.0.3 <span class="muted small">(Flask dep)</span></div>
+          <div class="dep-pkg dep-trans">Jinja2 3.1.4 <span class="muted small">(Flask dep)</span></div>
+          <div class="dep-pkg dep-trans">click 8.1.7 <span class="muted small">(Flask dep)</span></div>
+          <div class="dep-pkg dep-trans">itsdangerous 2.2.0 <span class="muted small">(Flask dep)</span></div>
+          <div class="dep-pkg dep-trans">blinker 1.8.2 <span class="muted small">(Flask dep)</span></div>
+          <div class="dep-pkg dep-trans">SQLAlchemy 2.0.30 <span class="muted small">(Flask-SQLAlchemy dep)</span></div>
+          <div class="dep-pkg dep-trans">greenlet 3.0.3 <span class="muted small">(SQLAlchemy dep)</span></div>
+          <div class="dep-pkg dep-trans">MarkupSafe 2.1.5 <span class="muted small">(Jinja2 dep)</span></div>
+          <div class="dep-pkg dep-trans">pip 23.0.1 <span class="muted small">(venv built-in)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt8" style="gap:14px;">
+      <div class="note flex1" style="font-size:0.82rem;">
+        <span class="green bold">Direct</span> = package you listed in <code>requirements.txt</code>
+      </div>
+      <div class="note flex1" style="font-size:0.82rem; border-color:var(--accent2); background:rgba(124,58,237,0.06);">
+        <span style="color:#a78bfa; font-weight:700;">Transitive</span> = packages that Flask/SQLAlchemy themselves depend on — pip installs these automatically
+      </div>
+      <div class="note note-yellow flex1" style="font-size:0.82rem;">
+        <strong>Key insight:</strong> Without venv, all 13 packages would be installed globally and would potentially conflict with other projects.
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 7 — Bash ↔ Python: File Operations Part 1 (pathlib)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s7">
+    <div class="slide-header">
+      <div class="slide-label">Python File Operations — Cross-Platform Library</div>
+      <div class="slide-title">Bash → Python: <span>Navigation &amp; Text I/O</span></div>
+      <div class="slide-sub">The <code>pathlib</code> module replaces Bash path commands with object-oriented, cross-platform Python. Part G of the lab.</div>
+    </div>
+
+    <div class="row" style="flex:1; gap:20px;">
+
+      <!-- Left: mapping table -->
+      <div style="flex:1.2; display:flex; flex-direction:column; gap:6px;">
+        <!-- Header -->
+        <div class="op-row">
+          <div class="op-bash op-bash-h" style="border-radius:6px 0 0 6px;">Bash command</div>
+          <div class="op-arr" style="background:rgba(255,255,255,0.06);">→</div>
+          <div class="op-py op-py-h" style="border-radius:0 6px 6px 0;">Python (pathlib)</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-blue" style="font-size:0.66rem; min-width:80px; justify-content:center;">📍 Navigate</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">pwd</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">Path.cwd()</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-blue" style="font-size:0.66rem; min-width:80px; justify-content:center;">📋 List</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">ls</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">Path.iterdir()</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-green" style="font-size:0.66rem; min-width:80px; justify-content:center;">📁 Create dir</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">mkdir -p dir</div>
+            <div class="op-arr">→</div>
+            <div class="op-py" style="font-size:0.78rem;">Path.mkdir(parents=True, exist_ok=True)</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-yellow" style="font-size:0.66rem; min-width:80px; justify-content:center;">📖 Read</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">cat file</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">Path.read_text(encoding="utf-8")</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-yellow" style="font-size:0.66rem; min-width:80px; justify-content:center;">✏️ Write</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">echo "text" > f</div>
+            <div class="op-arr">→</div>
+            <div class="op-py" style="font-size:0.8rem;">Path.write_text(text, encoding="utf-8")</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-purple" style="font-size:0.66rem; min-width:80px; justify-content:center;">🔍 Walk</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">find dir</div>
+            <div class="op-arr">→</div>
+            <div class="op-py" style="font-size:0.8rem;">Path.rglob("*")  or  os.walk(dir)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: code example -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:14px;">
+        <div class="card">
+          <div class="card-title">pathlib in action</div>
+          <div class="code" style="font-size:0.82rem; line-height:1.85;">
+<span class="kw">from</span> pathlib <span class="kw">import</span> <span class="fn">Path</span>
+
+<span class="co"># Where am I?</span>
+<span class="fn">print</span>(Path.<span class="fn">cwd</span>())
+<span class="co"># → /home/user/lab11/fm_project</span>
+
+<span class="co"># Write a file</span>
+p = Path(<span class="st">"workspace/note.txt"</span>)
+p.parent.<span class="fn">mkdir</span>(parents=<span class="nm">True</span>, exist_ok=<span class="nm">True</span>)
+p.<span class="fn">write_text</span>(<span class="st">"Hello!"</span>, encoding=<span class="st">"utf-8"</span>)
+
+<span class="co"># Read it back</span>
+content = p.<span class="fn">read_text</span>(encoding=<span class="st">"utf-8"</span>)
+<span class="fn">print</span>(content)   <span class="co"># → Hello!</span>
+
+<span class="co"># List directory</span>
+<span class="kw">for</span> item <span class="kw">in</span> Path(<span class="st">"workspace"</span>).<span class="fn">iterdir</span>():
+    <span class="fn">print</span>(item.name)</div>
+        </div>
+        <div class="note note-green" style="font-size:0.82rem;">
+          <strong>Cross-platform:</strong> <code>pathlib.Path</code> works identically on Linux, macOS, and Windows — no need to worry about <code>/</code> vs <code>\</code> separators.
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 8 — Bash ↔ Python: File Operations Part 2 (shutil)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s8">
+    <div class="slide-header">
+      <div class="slide-label">Python File Operations — Cross-Platform Library</div>
+      <div class="slide-title">Bash → Python: <span>Copy, Move &amp; Delete</span></div>
+      <div class="slide-sub">The <code>shutil</code> module handles high-level file operations. Together with <code>pathlib</code>, it covers all five core file-manager operations.</div>
+    </div>
+
+    <div class="row" style="flex:1; gap:20px;">
+
+      <!-- Left: mapping table -->
+      <div style="flex:1.2; display:flex; flex-direction:column; gap:6px;">
+        <div class="op-row">
+          <div class="op-bash op-bash-h" style="border-radius:6px 0 0 6px;">Bash command</div>
+          <div class="op-arr" style="background:rgba(255,255,255,0.06);">→</div>
+          <div class="op-py op-py-h" style="border-radius:0 6px 6px 0;">Python (shutil / pathlib)</div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-blue" style="font-size:0.66rem; min-width:80px; justify-content:center;">📋 Copy</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">cp src dst</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">shutil.copy2(src, dst)</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-yellow" style="font-size:0.66rem; min-width:80px; justify-content:center;">↪ Move</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">mv src dst</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">shutil.move(src, dst)</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-yellow" style="font-size:0.66rem; min-width:80px; justify-content:center;">↪ Rename</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">mv old new</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">shutil.move(old, new)</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-red" style="font-size:0.66rem; min-width:80px; justify-content:center;">🗑 Delete</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">rm file</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">Path(file).unlink()</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="pill pill-red" style="font-size:0.66rem; min-width:80px; justify-content:center;">🗑 Del dir</div>
+          <div class="op-row" style="flex:1;">
+            <div class="op-bash">rm -rf dir</div>
+            <div class="op-arr">→</div>
+            <div class="op-py">shutil.rmtree(dir)</div>
+          </div>
+        </div>
+
+        <!-- "This lab implements" summary -->
+        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:8px;">
+          <div style="text-align:center; padding:8px 4px; border-radius:8px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); font-size:0.72rem; color:var(--green);">✓ Read</div>
+          <div style="text-align:center; padding:8px 4px; border-radius:8px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); font-size:0.72rem; color:var(--green);">✓ Write</div>
+          <div style="text-align:center; padding:8px 4px; border-radius:8px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); font-size:0.72rem; color:var(--green);">✓ Copy</div>
+          <div style="text-align:center; padding:8px 4px; border-radius:8px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); font-size:0.72rem; color:var(--green);">✓ Move</div>
+          <div style="text-align:center; padding:8px 4px; border-radius:8px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); font-size:0.72rem; color:var(--green);">✓ Delete</div>
+        </div>
+        <div class="small muted" style="text-align:center;">All five implemented in <code>file_ops.py</code> (Case Study 2)</div>
+      </div>
+
+      <!-- Right: code -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:14px;">
+        <div class="card">
+          <div class="card-title">shutil + pathlib in action</div>
+          <div class="code" style="font-size:0.8rem; line-height:1.85;">
+<span class="kw">import</span> shutil
+<span class="kw">from</span> pathlib <span class="kw">import</span> <span class="fn">Path</span>
+
+src = Path(<span class="st">"workspace/note.txt"</span>)
+dst = Path(<span class="st">"workspace/docs/note_copy.txt"</span>)
+
+<span class="co"># Ensure destination folder exists</span>
+dst.parent.<span class="fn">mkdir</span>(parents=<span class="nm">True</span>, exist_ok=<span class="nm">True</span>)
+
+<span class="co"># Copy (preserves timestamps)</span>
+shutil.<span class="fn">copy2</span>(src, dst)
+
+<span class="co"># Move / rename</span>
+shutil.<span class="fn">move</span>(<span class="fn">str</span>(src), <span class="st">"workspace/renamed.txt"</span>)
+
+<span class="co"># Delete</span>
+Path(<span class="st">"workspace/renamed.txt"</span>).<span class="fn">unlink</span>()</div>
+        </div>
+        <div class="note note-yellow" style="font-size:0.82rem;">
+          <strong>Why <code>shutil.copy2</code> not <code>shutil.copy</code>?</strong><br>
+          <code>copy2</code> preserves the source file's metadata (modification time, permissions). Always prefer <code>copy2</code> in file manager applications.
+        </div>
+        <div class="note" style="font-size:0.82rem;">
+          <strong>Why <code>shutil.move</code> not <code>Path.rename</code>?</strong><br>
+          <code>Path.rename</code> fails when moving across different filesystem partitions. <code>shutil.move</code> handles both cases correctly.
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 9 — The Sandbox: Preventing Path Escaping
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s9">
+    <div class="slide-header">
+      <div class="slide-label">Security — Path Safety (Case Study 1)</div>
+      <div class="slide-title">The Sandbox: <span>Blocking Path Escape</span></div>
+      <div class="slide-sub">Every user-supplied path is validated before any I/O. Paths that leave the workspace are rejected with <code>PermissionError</code>.</div>
+    </div>
+
+    <div class="row" style="flex:1; gap:20px;">
+
+      <!-- Left: filesystem diagram -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:12px;">
+        <div class="card">
+          <div class="card-title">Filesystem View</div>
+          <div style="font-family:monospace; font-size:0.85rem; line-height:2.1;">
+            <div class="muted">/home/user/lab11/fm_project/</div>
+            <div style="padding-left:16px;" class="muted">├── config.json</div>
+            <div style="padding-left:16px;" class="muted">├── safe_paths.py</div>
+            <div style="padding-left:16px;" class="yellow">└── workspace/  ← <strong>sandbox boundary</strong></div>
+            <div style="padding-left:36px;" class="green">├── note.txt         ✓ OK</div>
+            <div style="padding-left:36px;" class="green">└── folder/a.txt     ✓ OK</div>
+            <div class="muted" style="margin-top:4px;">/home/user/lab11/</div>
+            <div style="padding-left:16px;" class="red">└── secret.txt       ✗ BLOCKED</div>
+            <div class="muted" style="margin-top:4px;">/etc/</div>
+            <div style="padding-left:16px;" class="red">└── passwd           ✗ BLOCKED</div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3);">
+            <span class="green bold" style="font-size:1.1rem;">✓</span>
+            <code style="font-size:0.82rem; color:var(--green);">"note.txt"</code>
+            <span class="muted small">→ resolves inside workspace</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3);">
+            <span class="green bold" style="font-size:1.1rem;">✓</span>
+            <code style="font-size:0.82rem; color:var(--green);">"folder/a.txt"</code>
+            <span class="muted small">→ subdirectory, still inside</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3);">
+            <span class="red bold" style="font-size:1.1rem;">✗</span>
+            <code style="font-size:0.82rem; color:var(--red);">"../secret.txt"</code>
+            <span class="muted small">→ escapes via ..</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3);">
+            <span class="red bold" style="font-size:1.1rem;">✗</span>
+            <code style="font-size:0.82rem; color:var(--red);">"/etc/passwd"</code>
+            <span class="muted small">→ absolute path, outside</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: code -->
+      <div style="flex:1.1; display:flex; flex-direction:column; gap:12px;">
+        <div class="card">
+          <div class="card-title">Sandbox.resolve_inside() — the guard</div>
+          <div class="code" style="font-size:0.8rem; line-height:1.85;">
+<span class="kw">def</span> <span class="fn">resolve_inside</span>(<span class="kw">self</span>, user_path: <span class="fn">str</span>) -> Path:
+    <span class="co"># Step 1: join with workspace, then resolve</span>
+    candidate = (<span class="kw">self</span>.workspace / user_path).<span class="fn">resolve</span>()
+
+    <span class="co"># Step 2: containment check</span>
+    <span class="kw">if</span> (candidate == <span class="kw">self</span>.workspace <span class="kw">or</span>
+        <span class="kw">self</span>.workspace <span class="kw">in</span> candidate.parents):
+        <span class="kw">return</span> candidate          <span class="co"># ✓ allowed</span>
+
+    <span class="co"># Step 3: anything else is outside — reject</span>
+    <span class="kw">raise</span> <span class="fn">PermissionError</span>(
+        <span class="st">f"Access denied: '{user_path}' "</span>
+        <span class="st">"resolves outside the workspace."</span>
+    )</div>
+        </div>
+        <div class="note note-yellow" style="font-size:0.82rem;">
+          <strong>Containment rule:</strong><br>
+          A path is <em>inside</em> the workspace if the workspace is either equal to the candidate, or appears in the candidate's chain of parent directories.
+          <br><br>
+          <code style="font-size:0.78rem;">self.workspace in candidate.parents</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 10 — How Path.resolve() Works
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s10">
+    <div class="slide-header">
+      <div class="slide-label">Security — Path Safety Detail</div>
+      <div class="slide-title">How <span>Path.resolve()</span> Eliminates <code>..</code></div>
+      <div class="slide-sub"><code>Path.resolve()</code> converts any path to an absolute, canonical form — making directory traversal attacks impossible to hide.</div>
+    </div>
+
+    <div style="display:flex; gap:20px; flex:1; align-items:stretch;">
+
+      <!-- Case 1: Escape attempt -->
+      <div class="resolve-box resolve-bad" style="flex:1;">
+        <div style="font-weight:700; color:var(--red); margin-bottom:6px;">✗ Escape attempt</div>
+        <div class="resolve-step resolve-input">workspace/../secret.txt</div>
+        <div class="resolve-arrow-v" style="color:var(--muted);">↓ Path.resolve() — step by step</div>
+
+        <div style="display:flex; flex-direction:column; gap:4px; padding:10px; background:rgba(0,0,0,0.3); border-radius:6px; font-family:monospace; font-size:0.78rem; color:var(--muted);">
+          <div>Start: <span class="accent">workspace/../secret.txt</span></div>
+          <div>→ Join with cwd:<br>&nbsp;&nbsp;<span class="accent">/home/user/lab11/fm_project/workspace/../secret.txt</span></div>
+          <div>→ Expand <span class="yellow">".."</span> (go one level up):<br>&nbsp;&nbsp;<span class="red">/home/user/lab11/fm_project/secret.txt</span></div>
+        </div>
+
+        <div class="resolve-step resolve-output-bad">
+          /home/user/lab11/fm_project/secret.txt
+        </div>
+        <div style="font-size:0.78rem; color:var(--red); font-weight:600; text-align:center; margin-top:4px;">
+          workspace/ is NOT in this path's parents → BLOCKED ✗
+        </div>
+      </div>
+
+      <!-- Case 2: Safe path -->
+      <div class="resolve-box resolve-ok" style="flex:1;">
+        <div style="font-weight:700; color:var(--green); margin-bottom:6px;">✓ Safe path</div>
+        <div class="resolve-step resolve-input">workspace/docs/note.txt</div>
+        <div class="resolve-arrow-v" style="color:var(--muted);">↓ Path.resolve() — step by step</div>
+
+        <div style="display:flex; flex-direction:column; gap:4px; padding:10px; background:rgba(0,0,0,0.3); border-radius:6px; font-family:monospace; font-size:0.78rem; color:var(--muted);">
+          <div>Start: <span class="accent">workspace/docs/note.txt</span></div>
+          <div>→ Join with cwd:<br>&nbsp;&nbsp;<span class="accent">/home/user/lab11/fm_project/workspace/docs/note.txt</span></div>
+          <div>→ No <span class="yellow">..</span> to expand.<br>&nbsp;&nbsp;Path is already clean.</div>
+        </div>
+
+        <div class="resolve-step resolve-output-ok">
+          /home/user/lab11/fm_project/workspace/docs/note.txt
+        </div>
+        <div style="font-size:0.78rem; color:var(--green); font-weight:600; text-align:center; margin-top:4px;">
+          workspace/ IS in candidate.parents → ALLOWED ✓
+        </div>
+      </div>
+
+      <!-- Right panel: what resolve does -->
+      <div style="flex:0.8; display:flex; flex-direction:column; gap:12px;">
+        <div class="card">
+          <div class="card-title">What Path.resolve() does</div>
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:0.84rem;">
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <div style="background:rgba(0,212,255,0.15); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; color:var(--accent); flex-shrink:0;">1</div>
+              <div><strong>Expands <code>..</code> and <code>.</code></strong><br><span class="muted small">Removes every "go up one level" component.</span></div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <div style="background:rgba(0,212,255,0.15); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; color:var(--accent); flex-shrink:0;">2</div>
+              <div><strong>Follows symlinks</strong><br><span class="muted small">A symlink pointing outside the workspace is also caught.</span></div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <div style="background:rgba(0,212,255,0.15); border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; color:var(--accent); flex-shrink:0;">3</div>
+              <div><strong>Returns absolute path</strong><br><span class="muted small">Result always starts from <code>/</code> — unambiguous for comparison.</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="note note-green" style="font-size:0.8rem;">
+          After <code>resolve()</code>, path comparison becomes simple string/object equality — no need to parse path components manually.
+        </div>
+        <div class="code" style="font-size:0.78rem; line-height:1.75;">
+<span class="co"># In constructor</span>
+<span class="kw">self</span>.workspace = workspace.<span class="fn">resolve</span>()
+
+<span class="co"># In resolve_inside</span>
+candidate = (workspace / user_path).<span class="fn">resolve</span>()
+
+<span class="co"># candidate.parents is a sequence:</span>
+<span class="co"># [/home/user/.../workspace/docs,</span>
+<span class="co">#  /home/user/.../workspace,  ← here!</span>
+<span class="co">#  /home/user/..., /home/user, ...]</span></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SLIDE 11 — Lab Architecture Overview
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div class="slide" id="s11">
+    <div class="slide-header">
+      <div class="slide-label">Lab Summary</div>
+      <div class="slide-title">File Manager <span>Architecture</span></div>
+      <div class="slide-sub">How the five Python modules you build connect together inside <code>~/lab11/fm_project/</code>.</div>
+    </div>
+
+    <div class="row" style="flex:1; gap:20px; align-items:stretch;">
+
+      <!-- Left: architecture diagram -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:10px;">
+
+        <!-- Row: config.json → config_loader.py -->
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="arch-box arch-json" style="min-width:130px; text-align:center;">
+            📄 config.json<br>
+            <span style="font-size:0.7rem; color:var(--muted);">workspace, encoding,<br>allow_delete</span>
+          </div>
+          <div class="arch-h"></div>
+          <div class="arch-box arch-cfg" style="flex:1; text-align:center;">
+            config_loader.py<br>
+            <span style="font-size:0.7rem; color:var(--muted);">load_config() → AppConfig dataclass</span>
+          </div>
+          <div style="font-size:0.66rem; color:var(--muted); text-align:right; min-width:60px;">Part H</div>
+        </div>
+
+        <div style="margin-left:calc(130px + 40px); width:2px; height:18px; background:var(--border); position:relative;">
+          <div style="position:absolute; bottom:0; left:-4px; color:var(--muted); font-size:0.6rem;">▼</div>
+        </div>
+
+        <!-- Row: safe_paths.py -->
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="min-width:130px;"></div>
+          <div style="width:32px;"></div>
+          <div class="arch-box arch-safe" style="flex:1; text-align:center;">
+            safe_paths.py<br>
+            <span style="font-size:0.7rem; color:var(--muted);">Sandbox.resolve_inside() — blocks path escape</span>
+          </div>
+          <div style="font-size:0.66rem; color:var(--muted); text-align:right; min-width:60px;">CS1</div>
+        </div>
+
+        <div style="margin-left:calc(130px + 40px); width:2px; height:18px; background:var(--border); position:relative;">
+          <div style="position:absolute; bottom:0; left:-4px; color:var(--muted); font-size:0.6rem;">▼</div>
+        </div>
+
+        <!-- Row: file_ops.py -->
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="min-width:130px;"></div>
+          <div style="width:32px;"></div>
+          <div class="arch-box arch-ops" style="flex:1; text-align:center;">
+            file_ops.py<br>
+            <span style="font-size:0.7rem; color:var(--muted);">FileOps: write_text · read_text · copy_file · move · delete_file</span>
+          </div>
+          <div style="font-size:0.66rem; color:var(--muted); text-align:right; min-width:60px;">CS2</div>
+        </div>
+
+        <div style="margin-left:calc(130px + 40px); width:2px; height:18px; background:var(--border); position:relative;">
+          <div style="position:absolute; bottom:0; left:-4px; color:var(--muted); font-size:0.6rem;">▼</div>
+        </div>
+
+        <!-- Row: cli_manager.py ← user -->
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="arch-box arch-user" style="min-width:130px; text-align:center; font-size:0.82rem;">
+            👤 User input<br><span style="font-size:0.7rem; color:var(--muted);">fm> put a.txt hello</span>
+          </div>
+          <div class="arch-h"></div>
+          <div class="arch-box arch-cli" style="flex:1; text-align:center;">
+            cli_manager.py<br>
+            <span style="font-size:0.7rem; color:var(--muted);">input loop · parse command · dispatch · error handling</span>
+          </div>
+          <div style="font-size:0.66rem; color:var(--muted); text-align:right; min-width:60px;">CS3A</div>
+        </div>
+
+        <div style="margin-left:calc(130px + 40px); width:2px; height:18px; background:var(--border); position:relative;">
+          <div style="position:absolute; bottom:0; left:-4px; color:var(--muted); font-size:0.6rem;">▼</div>
+        </div>
+
+        <!-- Row: workspace -->
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="min-width:130px;"></div>
+          <div style="width:32px;"></div>
+          <div class="arch-box arch-ws" style="flex:1; text-align:center;">
+            📁 workspace/<br>
+            <span style="font-size:0.7rem; color:var(--muted);">all file I/O confined here — escape → PermissionError</span>
+          </div>
+          <div style="font-size:0.66rem; color:var(--muted); text-align:right; min-width:60px;">sandbox</div>
+        </div>
+      </div>
+
+      <!-- Right: directory tree + summary -->
+      <div style="flex:0.85; display:flex; flex-direction:column; gap:12px;">
+        <div class="card">
+          <div class="card-title">~/lab11 complete layout</div>
+          <div class="code" style="font-size:0.74rem; line-height:1.85;">
+~/lab11/
+├── prep_project/       <span class="co">← Part D (NumPy venv)</span>
+├── prep_project_copy/  <span class="co">← Part E (reproducibility)</span>
+├── flask_blog_practice/<span class="co">← Part F (real-world venv)</span>
+│   └── Flask-Blog-Tutorial/
+├── fm_project/         <span class="co">← Parts H & I</span>
+│   ├── config.json
+│   ├── config_loader.py
+│   ├── safe_paths.py
+│   ├── file_ops.py
+│   ├── cli_manager.py
+│   └── workspace/      <span class="co">← sandbox</span>
+└── file_manager_reference/ <span class="co">← CS3B</span>
+    └── fm/             <span class="co">← professional package</span></div>
+        </div>
+        <div class="note note-green" style="font-size:0.8rem;">
+          <strong>Design principle:</strong> Each layer only talks to the layer directly below it.
+          <code>cli_manager</code> never touches files directly — it always goes through <code>FileOps</code>, which always goes through <code>Sandbox</code>.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end #deck -->
+
+
+<!-- ── Navigation controls ──────────────────────────────────────────────── -->
+<div id="nav">
+  <button id="prevBtn" title="Previous slide (←)">&#8592;</button>
+  <div id="counter"></div>
+  <button id="nextBtn" title="Next slide (→)">&#8594;</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total  = slides.length;
+  let   cur    = 0;
+
+  function show(n) {
+    slides.forEach((s, i) => {
+      s.classList.remove('active', 'prev');
+      if (i === n)         s.classList.add('active');
+      else if (i === n-1)  s.classList.add('prev');
+    });
+    document.getElementById('counter').textContent = `${n+1} / ${total}`;
+    document.getElementById('slide-num').textContent = `${n+1} / ${total}`;
+    document.getElementById('progress').style.width = `${((n+1)/total)*100}%`;
+    document.getElementById('prevBtn').disabled = n === 0;
+    document.getElementById('nextBtn').disabled = n === total-1;
+  }
+
+  document.getElementById('prevBtn').addEventListener('click', () => { if (cur > 0)        show(--cur); });
+  document.getElementById('nextBtn').addEventListener('click', () => { if (cur < total-1)  show(++cur); });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { if (cur < total-1) show(++cur); e.preventDefault(); }
+    if (e.key === 'ArrowLeft')                    { if (cur > 0)       show(--cur); e.preventDefault(); }
+    if (e.key === 'Home')                         { cur=0;  show(cur); }
+    if (e.key === 'End')                          { cur=total-1; show(cur); }
+  });
+
+  show(0);
+</script>
+</body>
+</html>
